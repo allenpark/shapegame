@@ -9,8 +9,10 @@
   <body>
     Shape Game
     <div id="canvasContainer" class="canvasContainer">
-    <canvas id="canvas" class="canvas"></canvas>
+    <canvas id="canvas" class="canvas" onMouseMove="shapeGame.mouseMoved()">
+    </canvas>
     </div>
+    <span id="debug">&nbsp;</span>
   </body>
 <script src="shapegame.js"></script>
 </html>

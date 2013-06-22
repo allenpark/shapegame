@@ -65,13 +65,23 @@ ShapeGame.prototype.updateCanvas = function() {
 };
 
 /**
- * Sets the center.
+ * Sets the center in percent length.
  * @param {!number} xCenter The new x center, in percentage of width.
  * @param {!number} yCenter The new y center, in percentage of height.
  */
+ShapeGame.prototype.setCenterPercent = function(xCenter, yCenter) {
+  this.setCenter(xCenter * this.canvas.width,
+    yCenter * this.canvas.height);
+};
+
+/**
+ * Sets the center.
+ * @param {!number} xCenter The new x center.
+ * @param {!number} yCenter The new y center.
+ */
 ShapeGame.prototype.setCenter = function(xCenter, yCenter) {
-  this.xoff = xCenter * this.canvas.width;
-  this.yoff = yCenter * this.canvas.height;
+  this.xoff = xCenter;
+  this.yoff = yCenter;
 };
 
 /**
@@ -110,28 +120,49 @@ ShapeGame.prototype.inYRange = function(num) {
   return this.inRange(num, 0, this.canvas.height);
 };
 
-var moveCenterAround = function(canvas, shapeGame, time, x, y, diff) {
-  shapeGame.setCenter(x, y);
-  shapeGame.decorateCanvas();
-  shapeGame.updateCanvas();
-  var randomSign = function() {
-    return Math.floor(Math.random() * 2) * 2 - 1;};
-  var randomSign2 = function() {return 1;};
-  var newX = x + randomSign() * diff;
-  if (!shapeGame.inXRange(newX)) {
-    newX = 2*x - newX;
+ShapeGame.prototype.moveCenterAround = function(time, x, y, diff) {
+  if (!this.moving) {
+    this.randomMoving = true;
+    this.setCenterPercent(x, y);
+    this.decorateCanvas();
+    this.updateCanvas();
+    var randomSign = function() {
+      return Math.floor(Math.random() * 2) * 2 - 1;};
+    var newX = x + randomSign() * diff;
+    if (!this.inXRange(newX)) {
+      newX = 2*x - newX;
+    }
+    var newY = y + randomSign() * diff;
+    if (!this.inYRange(newY)) {
+      newY = 2*y - newY;
+    }
+    setTimeout(
+      (function()
+      {this.moveCenterAround(time, newX, newY, diff);}).bind(this),
+      time);
+    this.randomMoving = false;
   }
-  var newY = y + randomSign() * diff;
-  if (!shapeGame.inYRange(newY)) {
-    newY = 2*y - newY;
+}
+
+ShapeGame.prototype.mouseMoved = function(e) {
+  if (e == null) {
+    e = window.event; // for IE
   }
-  setTimeout(
-    function()
-    {moveCenterAround(canvas, shapeGame, time, newX, newY, diff);},
-    time);
+  while (this.randomMoving) {}
+  this.moving = true;
+  var newX = (e.pageX - this.canvas.offsetLeft) / 1200 * this.canvas.width;
+  var newY = (e.pageY - this.canvas.offsetTop) / 400 * this.canvas.height;
+  document.getElementById('debug').innerHTML =
+    'x: ' + newX + '/' + this.canvas.width +
+    ', y: ' + newY + '/' + this.canvas.height;
+  this.setCenter(newX, newY);
+  this.decorateCanvas();
+  this.updateCanvas();
 }
 
 var canvas = document.getElementById("canvas");
 var shapeGame = new ShapeGame(canvas);
-moveCenterAround(canvas, shapeGame, 20, .5, .5, .01);
+shapeGame.decorateCanvas();
+shapeGame.updateCanvas();
+shapeGame.moveCenterAround(20, .5, .5, .01);
 

@@ -10,4 +10,9 @@
   height: 400px;
   background-color: green;
 //  overflow: hidden;
+  -moz-user-select: none; 
+  -khtml-user-select: none; 
+  -webkit-user-select: none; 
+  -o-user-select: none; 
+//can also use $('.canvasContainer').disableSelection();
 }
