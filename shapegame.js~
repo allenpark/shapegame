@@ -1,0 +1,52 @@
+//$('.canvasContainer').width($(document).width());
+//$('.canvasContainer').height($(document).height());
+
+function setPixel(imageData, x, y, r, g, b, a) {
+  index = (x + y * imageData.width) * 4;
+  imageData.data[index+0] = r;
+  imageData.data[index+1] = g;
+  imageData.data[index+2] = b;
+  imageData.data[index+3] = a;
+}
+
+var element = document.getElementById("canvas");
+var c = element.getContext("2d");
+
+// read the width and height of the canvas
+var width = element.width;
+var height = element.height;
+
+// create a new pixel array
+var imageData = c.createImageData(width, height);
+
+pos = 0; // index position into imagedata array
+
+xoff = width / 3; // offsets to "center"
+yoff = height / 3;
+
+// walk left-to-right, top-to-bottom; it's the
+// same as the ordering in the imagedata array:
+
+for (y = 0; y < height; y++) {
+  for (x = 0; x < width; x++) {
+    // calculate sine based on distance
+    x2 = x - xoff;
+    y2 = y - yoff;
+    d = Math.sqrt(x2*x2 + y2*y2);
+    t = Math.sin(d/6.0);
+
+    // calculate RGB values based on sine
+    r = t * 200;
+    g = 125 + t * 80;
+    b = 235 + t * 20;
+
+    // set red, green, blue, and alpha:
+    imageData.data[pos++] = Math.max(0,Math.min(255, r));
+    imageData.data[pos++] = Math.max(0,Math.min(255, g));
+    imageData.data[pos++] = Math.max(0,Math.min(255, b));
+    imageData.data[pos++] = 255; // opaque alpha
+  }
+}
+
+// copy the image data back onto the canvas
+c.putImageData(imageData, 0, 0); // at coords 0,0
