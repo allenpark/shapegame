@@ -15,14 +15,17 @@ var ShapeGame = function(newCanvas) {
   this.posToShape = [];
   var newShape = [];
   var newShape2 = [];
+  var newShape3 = [];
   for (var x = 0; x < this.canvas.width; x++) {
     this.posToShape[x] = [];
     newShape[x] = [];
     newShape2[x] = [];
+    newShape3[x] = [];
     for (var y = 0; y < this.canvas.height; y++) {
       this.posToShape[x][y] = [];
       newShape[x][y] = null;
       newShape2[x][y] = null;
+      newShape3[x][y] = null;
     }
   }
 
@@ -36,10 +39,14 @@ var ShapeGame = function(newCanvas) {
   var yHeight = Math.floor(this.canvas.height/2);
   var newColor = randomColor();
   var newColor2 = randomColor();
+  var newColor3 = randomColor();
   var xMin = Math.floor(this.canvas.width/4);
   this.minX = xMin;
   var yMin = Math.floor(this.canvas.height/4);
   this.minY = yMin;
+  var inCircle = function(x, y) {
+    return (x - xMin) * (x - xMin) + (y - yMin) * (y - yMin) < 25 * 25;
+  }
   for (var x = 0; x < this.canvas.width; x++) {
     for (var y = 0; y < this.canvas.height; y++) {
       if (inRange(x, xMin, xMin + xWidth - 1) &&
@@ -48,12 +55,17 @@ var ShapeGame = function(newCanvas) {
         newShape[x][y] = newColor;
         newShape2[x+50][y] = newColor2;
       }
+      if (inCircle(x, y)) {
+        newShape3[x][y] = newColor3;
+      }
     }
   }
   this.shapes.push(new Shape(
     newShape, newColor, this.canvas.width, this.canvas.height));
   this.shapes.push(new Shape(
     newShape2, newColor2, this.canvas.width, this.canvas.height));
+  this.shapes.push(new Shape(
+    newShape3, newColor3, this.canvas.width, this.canvas.height));
   for (var x = 0; x < this.canvas.width; x++) {
     for (var y = 0; y < this.canvas.height; y++) {
       if (inRange(x, xMin, xMin + xWidth - 1) &&
@@ -61,6 +73,9 @@ var ShapeGame = function(newCanvas) {
           y > x) {
         this.posToShape[x][y].push(this.shapes[0]);
         this.posToShape[x+50][y].push(this.shapes[1]);
+      }
+      if (inCircle(x, y)) {
+        this.posToShape[x][y].push(this.shapes[2]);
       }
     }
   }
@@ -97,6 +112,8 @@ ShapeGame.prototype.lockingFunction = function(callback, funcName) {
     this.running = false;
   } else {
     console.trace();
+    console.log('Clearing callbacks. Behavior may be unexpected.');
+    this.running = false;
   }
 };
 
@@ -415,6 +432,37 @@ ShapeGame.prototype.moveShape = function(shape, xMove, yMove) {
   return true;
 };
 
+ShapeGame.prototype.cutThrough = function() {
+  this.lockingFunction(function() {this.cutThroughCallback();}.bind(this),
+                       'cutThrough');
+};
+
+ShapeGame.prototype.cutThroughCallback = function() {
+  var affectedShapeIndices = {};
+  for (var x = 0; x < this.canvas.width; x++) {
+    for (var y = 0; y < this.canvas.height; y++) {
+
+      for (var shapeIndex = 1; shapeIndex < this.posToShape[x][y].length;
+           shapeIndex++) { // skip the first shape
+        var shape = this.posToShape[x][y][shapeIndex];
+        affectedShapeIndices[this.shapes.indexOf(shape)] = true;
+        shape.shapeArray[x][y] = null;
+      }
+
+      if (this.posToShape[x][y].length > 1) { // remove all but first shape
+        this.posToShape[x][y] = [this.posToShape[x][y][0]];
+      }
+    }
+  }
+  for (var shapeIndex in affectedShapeIndices) {
+    this.shapes[shapeIndex].calcMinMax();
+  }
+  // Think about if the above or below approach works better.
+  /*for (var shapeIndex in this.shapes) {
+    this.shapes[shapeIndex].calcMinMax();
+  }*/
+};
+
 /**
  * Returns a random color.
  * @return {!Array.<number>} An array of length 3 with values between 0 and 256.
@@ -428,12 +476,18 @@ var Shape = function(
   newArray, newColor, canvasWidth, canvasHeight) {
   this.shapeArray = newArray;
   this.color = newColor || randomColor();
-  this.xMin = canvasWidth;
+  this.canvasWidth = canvasWidth;
+  this.canvasHeight = canvasHeight;
+  this.calcMinMax();
+};
+
+Shape.prototype.calcMinMax = function() {
+  this.xMin = this.canvasWidth;
   this.xMax = 0;
-  this.yMin = canvasHeight;
+  this.yMin = this.canvasHeight;
   this.yMax = 0;
-  for (var x = 0; x < canvasWidth; x++) {
-    for (var y = 0; y < canvasHeight; y++) {
+  for (var x = 0; x < this.canvasWidth; x++) {
+    for (var y = 0; y < this.canvasHeight; y++) {
       if (this.shapeArray[x][y] != null) {
         if (x < this.xMin) {
           this.xMin = x;
@@ -452,7 +506,7 @@ var Shape = function(
   }
   this.width = this.xMax - this.xMin;
   this.height = this.yMax - this.yMin;
-};
+}
 
 var canvas = document.getElementById("canvas");
 var shapeGame = new ShapeGame(canvas);
