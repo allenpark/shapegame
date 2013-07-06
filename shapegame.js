@@ -1,4 +1,11 @@
+// Frames per second.
 var fps = 60;
+// True iff debug messages are being shown.
+var debugMessages = false;
+// True iff function call messages are being shown.
+var funcDebugMessages = false;
+// True iff verifying shapes to eventToPos.
+var verifyingShapes = true;
 
 /**
  * The entirety of the shape game.
@@ -10,10 +17,10 @@ var ShapeGame = function(newCanvas) {
   this.imageData = this.context.createImageData(
     this.canvas.width, this.canvas.height);
 
-  this.xoff = this.canvas.width / 3;
-  this.yoff = this.canvas.height / 3;
+  // The center of the background.
+  this.backgroundCenter = [this.canvas.width / 3, this.canvas.height / 3];
 
-  // initializing position to shape map
+  // Initializing position to shape map.
   this.posToShape = [];
   for (var x = 0; x < this.canvas.width; x++) {
     this.posToShape[x] = [];
@@ -22,27 +29,85 @@ var ShapeGame = function(newCanvas) {
     }
   }
 
+  // The list of shapes.
   this.shapes = [];
 
+  // The shape the mouse is down on.
   this.mouseClicked = null;
+  // The last position the shape was moved to.
   this.mouseLastMoved = [];
+  // The last position the mouse was seen.
   this.mouseLastSeen = [];
 
-  this.callbacks = [];
-  this.running = false;
-
-  this.spf = 1000 / fps; // seconds per frame
+  // Milliseconds per frame.
+  this.mspf = 1000 / fps;
+  // Refreshes the canvas every this.mspf milliseconds.
   this.refreshInterval = setInterval(function() {
-    this.lockingFunction(function() {
-      this.decorateCanvas();
-    }.bind(this), 'refreshCanvas');
-    }.bind(this), this.spf);
+    this.decorateCanvas();
+    this.verifyShapes();
+    this.funcDebug('refreshInterval');
+  }.bind(this), this.mspf);
 };
 
+/**
+ * Prints out a debug message to the console.
+ * @param {string} message The debug message.
+ */
+ShapeGame.prototype.debug = function(message) {
+  if (debugMessages) {
+    console.log('[ShapeGame]: ' + message);
+  }
+};
+
+/**
+ * Prints out that a function is being called to the console.
+ * @param {string} message The function name.
+ */
+ShapeGame.prototype.funcDebug = function(message) {
+  if (funcDebugMessages) {
+    console.log('[ShapeGame]: Function ' + message + ' was called.');
+  }
+};
+
+/**
+ * Prints out a warning message to the console.
+ * @param {string} message The warning message.
+ */
+ShapeGame.prototype.warning = function(message) {
+  console.log('[ShapeGame]: (WARNING) ' + message);
+};
+
+/**
+ * Verifies that shape arrays match eventToPos.
+ */
+ShapeGame.prototype.verifyShapes = function() {
+  if (!verifyingShapes) {
+    return;
+  }
+  for (var x = 0; x < this.canvas.width; x++) {
+    for (var y = 0; y < this.canvas.height; y++) {
+      var posShapes = this.posToShape[x][y];
+      for (var shapeIndex in posShapes) {
+        var shape = posShapes[shapeIndex];
+        if (shape.color != shape.shapeArray[x][y]) {
+          this.warning('eventToPos doesn\'t match shape array');
+          return;
+        }
+      }
+    }
+  }
+};
+
+/**
+ * Makes a new shape.
+ * @param {!function(number, number)} shapeFunc Returns true iff
+ *     (number, number) is in the shape.
+ */
 ShapeGame.prototype.makeNewShape = function(shapeFunc) {
-  var newShape = [];
   var shape = new Shape(this.canvas.width, this.canvas.height);
   this.shapes.push(shape);
+
+  var newShape = [];
   for (var x = 0; x < this.canvas.width; x++) {
     newShape[x] = [];
     for (var y = 0; y < this.canvas.height; y++) {
@@ -57,32 +122,6 @@ ShapeGame.prototype.makeNewShape = function(shapeFunc) {
   shape.updateShapeArray(newShape);
 };
 
-ShapeGame.prototype.lockingFunction = function(callback, funcName) {
-  this.callbacks.push([callback, (new Date()).getTime(), funcName]);
-  if (!this.running) {
-    this.running = true;
-    while (this.callbacks.length > 0) {
-      if (this.callbacks.length > 1) {
-        console.log('callbacks is ' + this.callbacks.length + ' long');
-      }
-      var callbackInfo = this.callbacks.pop();
-      var timeSincePush = (new Date()).getTime() - callbackInfo[1];
-      if (timeSincePush > 1) {
-        console.log('lag is ' + timeSincePush);
-      }
-      if (callbackInfo[2]) {
-        //console.log('running ' + callbackInfo[2]);
-      }
-      callbackInfo[0]();
-    }
-    this.running = false;
-  } else {
-    console.trace();
-    console.log('Clearing callbacks. Behavior may be unexpected.');
-    this.running = false;
-  }
-};
-
 /**
  * Sets pixel pos to r, g, b, alpha.
  * @param {!number} x The x position of the pixel.
@@ -90,17 +129,15 @@ ShapeGame.prototype.lockingFunction = function(callback, funcName) {
  * @param {number} r The red value.
  * @param {number} g The green value.
  * @param {number} b The blue value.
- * @param {!ImageData=} image The image array. Default is this.imageData.
  * @param {number=} alpha The opaque value. Default is 255.
  */
-ShapeGame.prototype.setPixel = function(x, y, r, g, b, image, alpha) {
+ShapeGame.prototype.setPixel = function(x, y, r, g, b, alpha) {
   alpha = alpha != undefined ? alpha : 255;
-  image = image != undefined ? image : this.imageData;
   position = this.canvas.width * y + x;
-  image.data[position*4] = r;
-  image.data[position*4+1] = g;
-  image.data[position*4+2] = b;
-  image.data[position*4+3] = alpha;
+  this.imageData.data[position*4] = r;
+  this.imageData.data[position*4+1] = g;
+  this.imageData.data[position*4+2] = b;
+  this.imageData.data[position*4+3] = alpha;
 };
 
 /**
@@ -109,17 +146,17 @@ ShapeGame.prototype.setPixel = function(x, y, r, g, b, image, alpha) {
 ShapeGame.prototype.decorateCanvas = function() {
   for (var y = 0; y < this.canvas.height; y++) {
     for (var x = 0; x < this.canvas.width; x++) {
+      // If there's a shape on this pixel.
       if (this.posToShape[x][y].length > 0) {
         var color = this.posToShape[x][y][0].color;
         this.setPixel(x, y, color[0], color[1], color[2]);
       } else {
-        // calculate sine based on distance
-        var x2 = x - this.xoff;
-        var y2 = y - this.yoff;
-        var d = Math.sqrt(x2*x2 + y2*y2);
-        var t = Math.sin(d/6.0);
+        // Calculate sine based on distance.
+        var xDiff = x - this.backgroundCenter[0];
+        var yDiff = y - this.backgroundCenter[1];
+        var t = Math.sin(Math.sqrt(xDiff * xDiff + yDiff * yDiff) / 6.0);
 
-        // calculate RGB values based on sine
+        // Calculate RGB values based on sine.
         var r = Math.max(0,Math.min(255, t * 200));
         var g = Math.max(0,Math.min(255, 125 + t * 80));
         var b = Math.max(0,Math.min(255, 235 + t * 20));
@@ -131,23 +168,13 @@ ShapeGame.prototype.decorateCanvas = function() {
 };
 
 /**
- * Sets the center in percent length.
- * @param {!number} xCenter The new x center, in percentage of width.
- * @param {!number} yCenter The new y center, in percentage of height.
- */
-ShapeGame.prototype.setCenterPercent = function(xCenter, yCenter) {
-  this.setCenter(xCenter * this.canvas.width,
-    yCenter * this.canvas.height);
-};
-
-/**
  * Sets the center.
  * @param {!number} xCenter The new x center.
  * @param {!number} yCenter The new y center.
  */
 ShapeGame.prototype.setCenter = function(xCenter, yCenter) {
-  this.xoff = xCenter;
-  this.yoff = yCenter;
+  this.backgroundCenter[0] = xCenter;
+  this.backgroundCenter[1] = yCenter;
 };
 
 /**
@@ -161,13 +188,13 @@ ShapeGame.prototype.inCanvas = function(x, y) {
 };
 
 /**
- * Returns if the number is in the range, inclusive.
+ * Returns if the number is in the range.
  * @param {!number} num The number to be tested.
- * @param {!number} end1 The first end of the range.
- * @param {!number} end2 The second end of the range.
+ * @param {!number} end1 The first end of the range, inclusive.
+ * @param {!number} end2 The second end of the range, exclusive.
  */
 var inRange = function(num, end1, end2) {
-  return end1 <= num && num <= end2;
+  return end1 <= num && num < end2;
 };
 
 /**
@@ -187,28 +214,30 @@ ShapeGame.prototype.inYRange = function(num) {
 };
 
 /**
- * Does a random walk with the center. Only needs to be called once.
- * @param {!number} time The interval between updates.
- * @param {!number} x The new x coordinate.
- * @param {!number} y The new y coordinate.
- * @param {!number} diff The difference, in percentage, in coordinates.
+ * Moves the center in a random direction.
+ * @param {!number} diff The difference in coordinates.
  */
-ShapeGame.prototype.moveCenterAround = function(time, x, y, diff) {
-  this.setCenterPercent(x, y);
-  this.decorateCanvas();
+ShapeGame.prototype.centerRandomWalk = function(diff) {
+  var x = this.backgroundCenter[0];
+  var y = this.backgroundCenter[1];
+
+  // Returns either -1 or 1 randomly.
   var randomSign = function() {
-    return Math.floor(Math.random() * 2) * 2 - 1;};
+    return Math.floor(Math.random() * 2) * 2 - 1;
+  };
+
   var newX = x + randomSign() * diff;
   if (!this.inXRange(newX)) {
+    // Just go ahead and use the other sign.
     newX = 2*x - newX;
   }
   var newY = y + randomSign() * diff;
   if (!this.inYRange(newY)) {
+    // Just go ahead and use the other sign.
     newY = 2*y - newY;
   }
-  setTimeout(function() {
-        this.moveCenterAround(time, newX, newY, diff);
-      }.bind(this), time);
+
+  this.setCenter(newX, newY);
 };
 
 /**
@@ -217,42 +246,36 @@ ShapeGame.prototype.moveCenterAround = function(time, x, y, diff) {
  * @return {!Array.<number>} The position.
  */
 ShapeGame.prototype.eventToPos = function(e) {
+  // TODO: Read 1200 and 400 from the HTML page.
   var newX = (e.pageX - this.canvas.offsetLeft) / 1200 * this.canvas.width;
   var newY = (e.pageY - this.canvas.offsetTop) / 400 * this.canvas.height;
   return [Math.floor(newX), Math.floor(newY)];
 };
 
 /**
- * To be called when the mouse moves. Moves the center to the mouse.
+ * Called when the mouse moves. Moves the center to the mouse.
  * @param {Event} e The event thrown when the mouse moves.
  */
 ShapeGame.prototype.mouseMoved = function(e) {
+  this.funcDebug('mouseMoved');
   if (e == null) {
     e = window.event; // for IE
   }
-  this.lockingFunction(function() {this.mouseMovedCallback(e);}.bind(this),
-                       'mouseMoved');
-};
 
-/**
- * Callback for mouseMoved.
- * @param {Event} e The event thrown.
- */
-ShapeGame.prototype.mouseMovedCallback = function(e) {
   var pos = this.eventToPos(e);
+  this.setCenter(pos[0], pos[1]);
+  if (this.mouseClicked != null) {
+    this.mouseLastSeen = pos;
+  }
+
   document.getElementById('debug').innerHTML =
     'x: ' + pos[0] + '/' + this.canvas.width +
     ', y: ' + pos[1] + '/' + this.canvas.height;
-  this.setCenter(pos[0], pos[1]);
-  if (this.mouseClicked) {
-    while (this.randomMoving) {} // wait for random walk to stop
-    this.moving = true; // say that mouse has been moved
-    if (this.mouseClicked != null) {
-      this.mouseLastSeen = pos;
-    }
-  }
 };
 
+/**
+ * Updates the place of the shape to be where the mouse was last seen.
+ */
 ShapeGame.prototype.updateShapePlace = function() {
   var xMoved = this.mouseLastSeen[0] - this.mouseLastMoved[0];
   var yMoved = this.mouseLastSeen[1] - this.mouseLastMoved[1];
@@ -261,90 +284,76 @@ ShapeGame.prototype.updateShapePlace = function() {
 };
 
 /**
- * Called when the mouse goes down.
+ * Called when the mouse goes down. Looks for a shape at the click.
  * @param {Event} e The event thrown.
  */
 ShapeGame.prototype.mouseDown = function(e) {
+  this.funcDebug('mouseDown');
   if (e == null) {
     e = window.event; // for IE
   }
-  this.lockingFunction(function() {this.mouseDownCallback(e);}.bind(this),
-                       'mouseDown');
-};
 
-/**
- * Callback for mouseDown
- * @param {Event} e The event thrown.
- */
-ShapeGame.prototype.mouseDownCallback = function(e) {
   var pos = this.eventToPos(e);
+  // Grab the shape on top.
   var shape = this.posToShape[pos[0]][pos[1]][0];
   if (shape) {
     this.mouseClicked = shape;
     this.mouseLastMoved = pos;
     this.mouseLastSeen = pos;
     this.updateShapePlace();
-    this.interval = setInterval(function() {
-      this.lockingFunction(function() {
-        this.updateShapePlace();
-      }.bind(this), 'updateShapePlace');
-    }.bind(this), this.spf);
+    this.updateShapeInterval = setInterval(function() {
+      this.funcDebug('updateShapeInterval');
+      this.updateShapePlace();
+    }.bind(this), this.mspf);
   }
 };
 
 /**
- * To be called when the mouse goes up.
+ * Called when the mouse goes up. Clears the clicked shape.
  * @param {Event} e The event thrown.
  */
 ShapeGame.prototype.mouseUp = function(e) {
-  this.lockingFunction(function() {this.mouseUpCallback(e);}.bind(this),
-                       'mouseUp');
+  this.funcDebug('mouseUp');
+  if (e == null) {
+    e = window.event; // for IE
+  }
+
+  this.mouseClicked = null;
+  clearInterval(this.updateShapeInterval);
 };
 
 /**
- * Callback for mouseUp.
- * @param {Event} e The event thrown.
+ * Moves the shape a certain amount.
+ * @param {!Shape} shape The shape to be moved.
+ * @param {number} xMove The x amount to be moved.
+ * @param {number} yMove The y amount to be moved.
  */
-ShapeGame.prototype.mouseUpCallback = function(e) {
-  this.mouseClicked = null;
-  clearInterval(this.interval);
-};
-
 ShapeGame.prototype.moveShape = function(shape, xMove, yMove) {
-//  console.log('xMove:' + xMove + ',xMin:' + shape.xMin +
-//              ',xMax:' + shape.xMax + ',width:' + (shape.xMax - shape.xMin));
-  if (!inRange(xMove, -shape.xMin, this.canvas.width - shape.xMax)) {
-    //console.log('not in xrange');
+  if (!inRange(xMove, -shape.xMin, this.canvas.width - shape.xMax + 1)) {
+    this.debug('not in xrange');
     if (xMove < 0) {
       xMove = -shape.xMin;
     } else if (xMove > 0) {
       xMove = this.canvas.width - shape.xMax - 1;
     } else {
-      console.log('xMove = 0 but out of range');
+      this.warning('xMove = 0 but out of range');
     }
     return false;
   }
-  if (!inRange(yMove, -shape.yMin, this.canvas.height - shape.yMax)) {
-    //console.log('not in yrange');
+  if (!inRange(yMove, -shape.yMin, this.canvas.height - shape.yMax + 1)) {
+    this.debug('not in yrange');
     if (yMove < 0) {
       yMove = -shape.yMin;
     } else if (yMove > 0) {
       yMove = this.canvas.width - shape.yMax - 1;
     } else {
-      console.log('yMove = 0 but out of range');
+      this.warning('yMove = 0 but out of range');
     }
     return false;
   }
+
+  // Choose which way to iterate over the shape depending on movement direction.
   var xStart, xDiff, xFinal;
-  /*if (xMove < 0) {
-    xStart = -xMove;
-    xDiff = 1;
-    xFinal = this.canvas.width;
-  } else if (xMove >= 0) {
-    xStart = this.canvas.width - 1 - xMove;
-    xDiff = -1;
-    xFinal = 0;
-  }*/
   if (xMove < 0) {
     xStart = shape.xMin;
     xDiff = 1;
@@ -370,49 +379,39 @@ ShapeGame.prototype.moveShape = function(shape, xMove, yMove) {
   shape.yMin += yMove;
   shape.yMax += yMove;
 
-  //console.log(xStart + ' ' + xDiff + ' ' + xFinal);
-  //console.log(yStart + ' ' + yDiff + ' ' + yFinal);
-
   for (var x = xStart; xDiff * x < xDiff * xFinal; x += xDiff) {
     for (var y = yStart; yDiff * y < yDiff * yFinal; y += yDiff) {
-      var resetOrig = !inRange(x, shape.xMin, shape.xMax-1) ||
-          !inRange(y, shape.yMin, shape.yMax-1);
+      // If it's out of range of the loop, reset it. Note that the loop
+      // effectively goes from xMin to xMax and yMin to yMax _before_
+      // xMove and yMove were added.
+      var outOfRange = !inRange(x, shape.xMin, shape.xMax) ||
+          !inRange(y, shape.yMin, shape.yMax);
       shape.shapeArray[x+xMove][y+yMove] = shape.shapeArray[x][y];
-      if (resetOrig) {
+      if (outOfRange) {
         shape.shapeArray[x][y] = null;
       }
-      if (typeof this.posToShape[x] == 'undefined' ||
-          typeof this.posToShape[x][y] == 'undefined') {
-        console.log('noobx|' + xStart + ' ' + xDiff + ' ' + xFinal);
-        console.log('nooby|' + yStart + ' ' + yDiff + ' ' + yFinal);
-        console.log('rawr|' + x + ' ' + xMove + ' ' + (x+xMove) + '|' +
-                    y + ' ' + yMove + ' ' + (y+yMove));
-      }
+
       var indexShape = this.posToShape[x][y].indexOf(shape);
       if (indexShape != -1) {
         this.posToShape[x][y].splice(indexShape, 1);
-        this.posToShape[x+xMove][y+yMove].unshift(shape);
+        this.posToShape[x+xMove][y+yMove].unshift(shape); // Add to front.
       }
     }
   }
   return true;
 };
 
+/**
+ * Makes the top shape cut through all below shapes.
+ */
 ShapeGame.prototype.cutThrough = function() {
-  this.lockingFunction(function() {this.cutThroughCallback();}.bind(this),
-                       'cutThrough');
-};
+  this.funcDebug('cutThrough');
 
-ShapeGame.prototype.cutThroughCallback = function() {
-  var affectedShapeIndices = {};
   for (var x = 0; x < this.canvas.width; x++) {
     for (var y = 0; y < this.canvas.height; y++) {
-
       for (var shapeIndex = 1; shapeIndex < this.posToShape[x][y].length;
            shapeIndex++) { // skip the first shape
-        var shape = this.posToShape[x][y][shapeIndex];
-        affectedShapeIndices[this.shapes.indexOf(shape)] = true;
-        shape.shapeArray[x][y] = null;
+        this.posToShape[x][y][shapeIndex].shapeArray[x][y] = null;
       }
 
       if (this.posToShape[x][y].length > 1) { // remove all but first shape
@@ -420,13 +419,12 @@ ShapeGame.prototype.cutThroughCallback = function() {
       }
     }
   }
-  for (var shapeIndex in affectedShapeIndices) {
+
+  // TODO: Consider whether keeping a list of all affected shapes is better.
+  // Recalculate min/max/width/height for all shapes.
+  for (var shapeIndex in this.shapes) {
     this.shapes[shapeIndex].calcMinMax();
   }
-  // Think about if the above or below approach works better.
-  /*for (var shapeIndex in this.shapes) {
-    this.shapes[shapeIndex].calcMinMax();
-  }*/
 };
 
 /**
@@ -438,10 +436,19 @@ var randomColor = function() {
           Math.floor(Math.random()*256)];
 };
 
-var Shape = function(canvasWidth, canvasHeight, newArray, newColor) {
-  this.color = newColor || randomColor();
+/**
+ * The shapes.
+ * @param {number} canvasWidth The width of the canvas.
+ * @param {number} canvasHeight The height of the canvas.
+ * @param {Array.<number>=} newColor A new color. Default is a random color.
+ * @param {Array.<Array.<?number>>=} newArray The array representing the shape.
+ *     Iff a position is not null, then the position is in the shape. Default is
+ *     an empty array.
+ */
+var Shape = function(canvasWidth, canvasHeight, newColor, newArray) {
   this.canvasWidth = canvasWidth;
   this.canvasHeight = canvasHeight;
+  this.color = newColor || randomColor();
   if (newArray) {
     updateShapeArray(newArray);
   } else {
@@ -449,11 +456,19 @@ var Shape = function(canvasWidth, canvasHeight, newArray, newColor) {
   }
 };
 
+/**
+ * Updates the shape with a new array.
+ * @param {Array.<Array.<?number>>} newArray The array representing the shape.
+ *     Iff a position is not null, then the position is in the shape.
+ */
 Shape.prototype.updateShapeArray = function(newArray) {
   this.shapeArray = newArray;
   this.calcMinMax();
 };
 
+/**
+ * Calculates minimum and maximum x and y and the width and height.
+ */
 Shape.prototype.calcMinMax = function() {
   this.xMin = this.canvasWidth;
   this.xMax = 0;
@@ -488,20 +503,25 @@ var xWidth = Math.floor(this.canvas.width/2);
 var yHeight = Math.floor(this.canvas.height/2);
 var xMin = Math.floor(this.canvas.width/4);
 var yMin = Math.floor(this.canvas.height/4);
-var firstRect = function(x, y) {
-  return inRange(x, xMin, xMin + xWidth - 1) &&
-      inRange(y, yMin, yMin + yHeight - 1) &&
+var inFirstTriangle = function(x, y) {
+  return inRange(x, xMin, xMin + xWidth) &&
+      inRange(y, yMin, yMin + yHeight) &&
       y > x;
 };
-var secondRect = function(x, y) {
-  return inRange(x - 50, xMin, xMin + xWidth - 1) &&
-      inRange(y, yMin, yMin + yHeight - 1) &&
+var inSecondTriangle = function(x, y) {
+  return inRange(x - 50, xMin, xMin + xWidth) &&
+      inRange(y, yMin, yMin + yHeight) &&
       y > x - 50;
 };
 var inCircle = function(x, y) {
   return (x - xMin) * (x - xMin) + (y - yMin) * (y - yMin) < 25 * 25;
 };
-shapeGame.makeNewShape(firstRect);
-shapeGame.makeNewShape(secondRect);
+shapeGame.makeNewShape(inFirstTriangle);
+shapeGame.makeNewShape(inSecondTriangle);
 shapeGame.makeNewShape(inCircle);
-//shapeGame.moveCenterAround(20, .5, .5, .01);
+
+/*var percentMove = .01;
+var randomWalk = setInterval(function() {
+    shapeGame.centerRandomWalk(percentMove * shapeGame.canvas.width,
+        percentMove * shapeGame.canvas.height);
+  }, 20);*/
