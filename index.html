@@ -9,7 +9,9 @@
   <body>
     Shape Game
     <div id="canvasContainer" class="canvasContainer">
-    <canvas id="canvas" class="canvas" onMouseMove="shapeGame.mouseMoved()">
+    <canvas id="canvas" class="canvas" onMouseMove="shapeGame.mouseMoved()"
+            onMouseDown="shapeGame.mouseDown()" onMouseUp="shapeGame.mouseUp()"
+            onMouseOut="shapeGame.mouseUp()">
     </canvas>
     </div>
     <span id="debug">&nbsp;</span>
