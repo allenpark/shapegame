@@ -423,7 +423,8 @@ ShapeGame.prototype.cutThrough = function() {
   // TODO: Consider whether keeping a list of all affected shapes is better.
   // Recalculate min/max/width/height for all shapes.
   for (var shapeIndex in this.shapes) {
-    this.shapes[shapeIndex].calcMinMax();
+    var shape = this.shapes[shapeIndex];
+    shape.calcMinMax(shape.xMin, shape.xMax, shape.yMin, shape.yMax);
   }
 };
 
@@ -468,14 +469,24 @@ Shape.prototype.updateShapeArray = function(newArray) {
 
 /**
  * Calculates minimum and maximum x and y and the width and height.
+ * @param {number=} xLow The lowest x value to be checked. Default is 0.
+ * @param {number=} xHigh the highest x value to be checked. Default is 
+ *     canvasWidth.
+ * @param {number=} yLow The lowest y value to be checked. Default is 0.
+ * @param {number=} yHigh The highest y value to be checked. Default is
+ *     canvasHeight.
  */
-Shape.prototype.calcMinMax = function() {
-  this.xMin = this.canvasWidth;
-  this.xMax = 0;
-  this.yMin = this.canvasHeight;
-  this.yMax = 0;
-  for (var x = 0; x < this.canvasWidth; x++) {
-    for (var y = 0; y < this.canvasHeight; y++) {
+Shape.prototype.calcMinMax = function(xLow, xHigh, yLow, yHigh) {
+  xLow = typeof xLow == 'undefined' ? 0 : xLow;
+  xHigh = typeof xHigh == 'undefined' ? this.canvasWidth : xHigh;
+  yLow = typeof yLow == 'undefined' ? 0 : yLow;
+  yHigh = typeof yHigh == 'undefined' ? this.canvasHeight: yHigh;
+  this.xMin = xHigh;
+  this.xMax = xLow;
+  this.yMin = yHigh;
+  this.yMax = yLow;
+  for (var x = xLow; x < xHigh; x++) {
+    for (var y = yLow; y < yHigh; y++) {
       if (this.shapeArray[x][y] != null) {
         if (x < this.xMin) {
           this.xMin = x;
