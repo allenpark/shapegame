@@ -1,3 +1,5 @@
+var fps = 60;
+
 /**
  * The entirety of the shape game.
  * @param {Canvas} The canvas element.
@@ -13,19 +15,10 @@ var ShapeGame = function(newCanvas) {
 
   // initializing position to shape map
   this.posToShape = [];
-  var newShape = [];
-  var newShape2 = [];
-  var newShape3 = [];
   for (var x = 0; x < this.canvas.width; x++) {
     this.posToShape[x] = [];
-    newShape[x] = [];
-    newShape2[x] = [];
-    newShape3[x] = [];
     for (var y = 0; y < this.canvas.height; y++) {
       this.posToShape[x][y] = [];
-      newShape[x][y] = null;
-      newShape2[x][y] = null;
-      newShape3[x][y] = null;
     }
   }
 
@@ -35,60 +28,33 @@ var ShapeGame = function(newCanvas) {
   this.mouseLastMoved = [];
   this.mouseLastSeen = [];
 
-  var xWidth = Math.floor(this.canvas.width/2);
-  var yHeight = Math.floor(this.canvas.height/2);
-  var newColor = randomColor();
-  var newColor2 = randomColor();
-  var newColor3 = randomColor();
-  var xMin = Math.floor(this.canvas.width/4);
-  this.minX = xMin;
-  var yMin = Math.floor(this.canvas.height/4);
-  this.minY = yMin;
-  var inCircle = function(x, y) {
-    return (x - xMin) * (x - xMin) + (y - yMin) * (y - yMin) < 25 * 25;
-  }
-  for (var x = 0; x < this.canvas.width; x++) {
-    for (var y = 0; y < this.canvas.height; y++) {
-      if (inRange(x, xMin, xMin + xWidth - 1) &&
-          inRange(y, yMin, yMin + yHeight - 1) &&
-          y > x) {
-        newShape[x][y] = newColor;
-        newShape2[x+50][y] = newColor2;
-      }
-      if (inCircle(x, y)) {
-        newShape3[x][y] = newColor3;
-      }
-    }
-  }
-  this.shapes.push(new Shape(
-    newShape, newColor, this.canvas.width, this.canvas.height));
-  this.shapes.push(new Shape(
-    newShape2, newColor2, this.canvas.width, this.canvas.height));
-  this.shapes.push(new Shape(
-    newShape3, newColor3, this.canvas.width, this.canvas.height));
-  for (var x = 0; x < this.canvas.width; x++) {
-    for (var y = 0; y < this.canvas.height; y++) {
-      if (inRange(x, xMin, xMin + xWidth - 1) &&
-          inRange(y, yMin, yMin + yHeight - 1) &&
-          y > x) {
-        this.posToShape[x][y].push(this.shapes[0]);
-        this.posToShape[x+50][y].push(this.shapes[1]);
-      }
-      if (inCircle(x, y)) {
-        this.posToShape[x][y].push(this.shapes[2]);
-      }
-    }
-  }
-
   this.callbacks = [];
   this.running = false;
 
-  this.spf = 15; // seconds per frame
+  this.spf = 1000 / fps; // seconds per frame
   this.refreshInterval = setInterval(function() {
     this.lockingFunction(function() {
       this.decorateCanvas();
     }.bind(this), 'refreshCanvas');
     }.bind(this), this.spf);
+};
+
+ShapeGame.prototype.makeNewShape = function(shapeFunc) {
+  var newShape = [];
+  var shape = new Shape(this.canvas.width, this.canvas.height);
+  this.shapes.push(shape);
+  for (var x = 0; x < this.canvas.width; x++) {
+    newShape[x] = [];
+    for (var y = 0; y < this.canvas.height; y++) {
+      if (shapeFunc(x, y)) {
+        newShape[x][y] = shape.color;
+        this.posToShape[x][y].push(shape);
+      } else {
+        newShape[x][y] = null;
+      }
+    }
+  }
+  shape.updateShapeArray(newShape);
 };
 
 ShapeGame.prototype.lockingFunction = function(callback, funcName) {
@@ -266,7 +232,7 @@ ShapeGame.prototype.mouseMoved = function(e) {
   }
   this.lockingFunction(function() {this.mouseMovedCallback(e);}.bind(this),
                        'mouseMoved');
-}
+};
 
 /**
  * Callback for mouseMoved.
@@ -304,7 +270,7 @@ ShapeGame.prototype.mouseDown = function(e) {
   }
   this.lockingFunction(function() {this.mouseDownCallback(e);}.bind(this),
                        'mouseDown');
-}
+};
 
 /**
  * Callback for mouseDown
@@ -472,12 +438,19 @@ var randomColor = function() {
           Math.floor(Math.random()*256)];
 };
 
-var Shape = function(
-  newArray, newColor, canvasWidth, canvasHeight) {
-  this.shapeArray = newArray;
+var Shape = function(canvasWidth, canvasHeight, newArray, newColor) {
   this.color = newColor || randomColor();
   this.canvasWidth = canvasWidth;
   this.canvasHeight = canvasHeight;
+  if (newArray) {
+    updateShapeArray(newArray);
+  } else {
+    this.shapeArray = [];
+  }
+};
+
+Shape.prototype.updateShapeArray = function(newArray) {
+  this.shapeArray = newArray;
   this.calcMinMax();
 };
 
@@ -506,9 +479,29 @@ Shape.prototype.calcMinMax = function() {
   }
   this.width = this.xMax - this.xMin;
   this.height = this.yMax - this.yMin;
-}
+};
 
 var canvas = document.getElementById("canvas");
 var shapeGame = new ShapeGame(canvas);
-shapeGame.decorateCanvas();
+
+var xWidth = Math.floor(this.canvas.width/2);
+var yHeight = Math.floor(this.canvas.height/2);
+var xMin = Math.floor(this.canvas.width/4);
+var yMin = Math.floor(this.canvas.height/4);
+var firstRect = function(x, y) {
+  return inRange(x, xMin, xMin + xWidth - 1) &&
+      inRange(y, yMin, yMin + yHeight - 1) &&
+      y > x;
+};
+var secondRect = function(x, y) {
+  return inRange(x - 50, xMin, xMin + xWidth - 1) &&
+      inRange(y, yMin, yMin + yHeight - 1) &&
+      y > x - 50;
+};
+var inCircle = function(x, y) {
+  return (x - xMin) * (x - xMin) + (y - yMin) * (y - yMin) < 25 * 25;
+};
+shapeGame.makeNewShape(firstRect);
+shapeGame.makeNewShape(secondRect);
+shapeGame.makeNewShape(inCircle);
 //shapeGame.moveCenterAround(20, .5, .5, .01);
