@@ -102,9 +102,10 @@ ShapeGame.prototype.verifyShapes = function() {
  * Makes a new shape.
  * @param {!function(number, number)} shapeFunc Returns true iff
  *     (number, number) is in the shape.
+ * @param {Array.<number>=} color A color array. Default is random.
  */
-ShapeGame.prototype.makeNewShape = function(shapeFunc) {
-  var shape = new Shape(this.canvas.width, this.canvas.height);
+ShapeGame.prototype.makeNewShape = function(shapeFunc, color) {
+  var shape = new Shape(this.canvas.width, this.canvas.height, color);
   this.shapes.push(shape);
 
   var newShape = [];
@@ -119,7 +120,8 @@ ShapeGame.prototype.makeNewShape = function(shapeFunc) {
       }
     }
   }
-  shape.updateShapeArray(newShape);
+  shape.shapeArray = newShape;
+  this.recalculateShapeParams(this.shapes.length - 1);
 };
 
 /**
@@ -409,12 +411,14 @@ ShapeGame.prototype.cutThrough = function() {
 
   for (var x = 0; x < this.canvas.width; x++) {
     for (var y = 0; y < this.canvas.height; y++) {
+      // Skip the first shape.
       for (var shapeIndex = 1; shapeIndex < this.posToShape[x][y].length;
-           shapeIndex++) { // skip the first shape
+           shapeIndex++) {
         this.posToShape[x][y][shapeIndex].shapeArray[x][y] = null;
       }
 
-      if (this.posToShape[x][y].length > 1) { // remove all but first shape
+      // Remove all but first shape.
+      if (this.posToShape[x][y].length > 1) {
         this.posToShape[x][y] = [this.posToShape[x][y][0]];
       }
     }
@@ -422,10 +426,57 @@ ShapeGame.prototype.cutThrough = function() {
 
   // TODO: Consider whether keeping a list of all affected shapes is better.
   // Recalculate min/max/width/height for all shapes.
-  for (var shapeIndex in this.shapes) {
+  for (var shapeIndex = this.shapes.length - 1; shapeIndex >= 0;
+       shapeIndex --) {
     var shape = this.shapes[shapeIndex];
-    shape.calcMinMax(shape.xMin, shape.xMax, shape.yMin, shape.yMax);
+    this.recalculateShapeParams(
+        shapeIndex, shape.xMin, shape.xMax, shape.yMin, shape.yMax);
   }
+};
+
+/**
+ * Recalculates xMin, xMax, yMin, yMax, width, height, and whether a shape is
+ * gone or split. May delete from or add to the end of this.shapes.
+ * @param {number} shapeIndex The index of the shape in this.shapes.
+ * @param {number=} xLow The lowest x to be considered. Default is 0.
+ * @param {number=} xHigh The highest x to be considered. Default is
+ *     this.canvas.width.
+ * @param {number=} yLow The lowest y to be considered. Default is 0.
+ * @param {number=} yHigh The highest y to be considered. Default is
+ *     this.canvas.height.
+ */
+ShapeGame.prototype.recalculateShapeParams =
+    function(shapeIndex, xLow, xHigh, yLow, yHigh) {
+  var shape = this.shapes[shapeIndex];
+  // We know that all shapes are within their original boundaries.
+  var shapeFuncArray =
+    shape.calculateParams(xLow, xHigh, yLow, yHigh);
+  var numShapes = shapeFuncArray[0];
+  var shapeFunc = shapeFuncArray[1];
+  if (numShapes == 0) { // Shape is gone.
+    // No need to remove from posToShape because it's already gone.
+    this.shapes.splice(shapeIndex, 1);
+  } else if (numShapes > 1) { // Shape split into more than 1.
+    // Remove from this.shapes.
+    this.shapes.splice(shapeIndex, 1);
+
+    // Remove from posToShape.
+    for (var x = 0; x < this.canvas.width; x++) {
+      for (var y = 0; y < this.canvas.height; y++) {
+        var removedIndex = this.posToShape[x][y].indexOf(shape);
+        if (removedIndex != -1) {
+          this.posToShape[x][y].splice(removedIndex, 1);
+        }
+      }
+    }
+
+    // Add new shapes.
+    for (var i = 0; i < numShapes; i++) {
+      this.makeNewShape(
+          function(x, y) {return shapeFunc(x, y, i);}, shape.color);
+    }
+  }
+
 };
 
 /**
@@ -450,44 +501,69 @@ var Shape = function(canvasWidth, canvasHeight, newColor, newArray) {
   this.canvasWidth = canvasWidth;
   this.canvasHeight = canvasHeight;
   this.color = newColor || randomColor();
-  if (newArray) {
-    updateShapeArray(newArray);
-  } else {
-    this.shapeArray = [];
-  }
-};
-
-/**
- * Updates the shape with a new array.
- * @param {Array.<Array.<?number>>} newArray The array representing the shape.
- *     Iff a position is not null, then the position is in the shape.
- */
-Shape.prototype.updateShapeArray = function(newArray) {
-  this.shapeArray = newArray;
-  this.calcMinMax();
+  this.shapeArray = newArray || [];
 };
 
 /**
  * Calculates minimum and maximum x and y and the width and height.
  * @param {number=} xLow The lowest x value to be checked. Default is 0.
- * @param {number=} xHigh the highest x value to be checked. Default is 
+ * @param {number=} xHigh the highest x value to be checked. Default is
  *     canvasWidth.
  * @param {number=} yLow The lowest y value to be checked. Default is 0.
  * @param {number=} yHigh The highest y value to be checked. Default is
  *     canvasHeight.
+ * @return {(number, function(number, number, number)} The first number is the
+ *     number of shapes produced. The second function takes x, y, i and returns
+ *     true iff (x, y) is in shape i, where 0 <= i < numShapes.
  */
-Shape.prototype.calcMinMax = function(xLow, xHigh, yLow, yHigh) {
+Shape.prototype.calculateParams = function(xLow, xHigh, yLow, yHigh) {
   xLow = typeof xLow == 'undefined' ? 0 : xLow;
   xHigh = typeof xHigh == 'undefined' ? this.canvasWidth : xHigh;
   yLow = typeof yLow == 'undefined' ? 0 : yLow;
   yHigh = typeof yHigh == 'undefined' ? this.canvasHeight: yHigh;
+
+  // Extreme values of each.
   this.xMin = xHigh;
   this.xMax = xLow;
   this.yMin = yHigh;
   this.yMax = yLow;
+
+  // A 2D array with indices into shapeNums.
+  var shapeNumRefs = [];
+  // A list of shape numbers. Can contain duplicates.
+  var shapeNums = [];
+  // The highest shape number used so far.
+  var highestShapeNum = -1;
+  // The shape numbers that are actually in use.
+  var shapeNumsInUse = [];
   for (var x = xLow; x < xHigh; x++) {
+    shapeNumRefs[x] = [];
     for (var y = yLow; y < yHigh; y++) {
+      shapeNumRefs[x][y] = -1;
       if (this.shapeArray[x][y] != null) {
+        var xLinkExists = x != xLow && this.shapeArray[x-1][y] != null;
+        var yLinkExists = y != yLow && this.shapeArray[x][y-1] != null;
+        if (xLinkExists) {
+          shapeNumRefs[x][y] = shapeNumRefs[x-1][y];
+          if (yLinkExists && // Both xLink and yLink exists.
+              shapeNums[shapeNumRefs[x-1][y]] !=
+              shapeNums[shapeNumRefs[x][y-1]]) {
+            shapeNumsInUse.splice( // Remove from in use.
+                shapeNumsInUse.indexOf(shapeNums[shapeNumRefs[x][y-1]]));
+            // If they're connected, then they should use the same shape number.
+            shapeNums[shapeNumRefs[x][y-1]] = shapeNums[shapeNumRefs[x-1][y]];
+          }
+        } else if (yLinkExists) { // Only yLink exists.
+          shapeNumRefs[x][y] = shapeNumRefs[x][y-1];
+        } else { // Neither xLink nor yLink exist. Make a new shape num.
+          highestShapeNum ++;
+          numShapes ++;
+          shapeNumsInUse.push(highestShapeNum);
+          shapeNums.push(highestShapeNum);
+          shapeNumRefs[x][y] = shapeNums.length - 1;
+        }
+
+        // Searching for xMin, xMax, yMin, and yMax.
         if (x < this.xMin) {
           this.xMin = x;
         }
@@ -505,6 +581,15 @@ Shape.prototype.calcMinMax = function(xLow, xHigh, yLow, yHigh) {
   }
   this.width = this.xMax - this.xMin;
   this.height = this.yMax - this.yMin;
+  var numShapes = shapeNumsInUse.length;
+
+  var shapeFuncArray = [shapeNumsInUse.length,
+      function(x, y, i) {
+        return typeof shapeNumRefs[x] != 'undefined' &&
+          typeof shapeNumRefs[x][y] != 'undefined' &&
+          shapeNumsInUse[i] == shapeNums[shapeNumRefs[x][y]];
+      }];
+  return shapeFuncArray;
 };
 
 var canvas = document.getElementById("canvas");
