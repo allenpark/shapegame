@@ -9,9 +9,11 @@
   <body>
     Shape Game
     <div id="canvasContainer" class="canvasContainer">
-    <canvas id="canvas" class="canvas" onMouseMove="shapeGame.mouseMoved()"
-            onMouseDown="shapeGame.mouseDown()" onMouseUp="shapeGame.mouseUp()"
-            onMouseOut="shapeGame.mouseUp()">
+    <canvas id="canvas" class="canvas"
+            onMouseMove="shapeGame.mouseMoved()"
+            onMouseDown="shapeGame.focusShape()"
+            onMouseUp="shapeGame.unfocusShape()"
+            onMouseOut="shapeGame.unfocusShape()">
     </canvas>
     </div>
     <button onclick="shapeGame.cutThrough()">Cut through</button>
