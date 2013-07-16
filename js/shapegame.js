@@ -568,16 +568,20 @@ Shape.prototype.calculateParams = function(xLow, xHigh, yLow, yHigh) {
           if (yLinkExists && // Both xLink and yLink exists.
               shapeNums[shapeNumRefs[x-1][y]] !=
               shapeNums[shapeNumRefs[x][y-1]]) {
-            shapeNumsInUse.splice( // Remove from in use.
-                shapeNumsInUse.indexOf(shapeNums[shapeNumRefs[x][y-1]]), 1);
+            var getRidOf = shapeNums[shapeNumRefs[x][y-1]];
+            // Remove from in use.
+            shapeNumsInUse.splice(shapeNumsInUse.indexOf(getRidOf), 1);
             // If they're connected, then they should use the same shape number.
-            shapeNums[shapeNumRefs[x][y-1]] = shapeNums[shapeNumRefs[x-1][y]];
+            for (var i = 0; i < shapeNums.length; i++) {
+              if (shapeNums[i] == getRidOf) {
+                shapeNums[i] = shapeNums[shapeNumRefs[x-1][y]];
+              }
+            }
           }
         } else if (yLinkExists) { // Only yLink exists.
           shapeNumRefs[x][y] = shapeNumRefs[x][y-1];
         } else { // Neither xLink nor yLink exist. Make a new shape num.
           highestShapeNum ++;
-          numShapes ++;
           shapeNumsInUse.push(highestShapeNum);
           shapeNums.push(highestShapeNum);
           shapeNumRefs[x][y] = shapeNums.length - 1;
