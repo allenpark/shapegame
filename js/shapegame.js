@@ -450,6 +450,7 @@ ShapeGame.prototype.cutThrough = function() {
     this.recalculateShapeParams(
         shapeIndex, shape.xMin, shape.xMax, shape.yMin, shape.yMax);
   }
+  console.log('rawr');
 };
 
 /**
@@ -568,7 +569,7 @@ Shape.prototype.calculateParams = function(xLow, xHigh, yLow, yHigh) {
               shapeNums[shapeNumRefs[x-1][y]] !=
               shapeNums[shapeNumRefs[x][y-1]]) {
             shapeNumsInUse.splice( // Remove from in use.
-                shapeNumsInUse.indexOf(shapeNums[shapeNumRefs[x][y-1]]));
+                shapeNumsInUse.indexOf(shapeNums[shapeNumRefs[x][y-1]]), 1);
             // If they're connected, then they should use the same shape number.
             shapeNums[shapeNumRefs[x][y-1]] = shapeNums[shapeNumRefs[x-1][y]];
           }
@@ -602,6 +603,7 @@ Shape.prototype.calculateParams = function(xLow, xHigh, yLow, yHigh) {
   this.height = this.yMax - this.yMin;
   var numShapes = shapeNumsInUse.length;
 
+  console.log(shapeNums + ', ' + shapeNumsInUse);
   var shapeFuncArray = [shapeNumsInUse.length,
       function(x, y, i) {
         return typeof shapeNumRefs[x] != 'undefined' &&
